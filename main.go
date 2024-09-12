@@ -3,14 +3,17 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
+	"net/http"
 	"sync"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/websocket/v2"
+	"github.com/gorilla/websocket"
 )
 
-var hub = newHub()
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
 
 type Client struct {
 	conn *websocket.Conn
@@ -55,18 +58,23 @@ func (h *Hub) broadcast(message []byte) {
 	}
 }
 
-func handleConnection(c *websocket.Conn) {
+func handleConnection(hub *Hub, w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("Error while upgrading connection:", err)
+		return
+	}
 	client := &Client{
-		conn: c,
+		conn: conn,
 		send: make(chan []byte),
 	}
 	hub.register(client)
 
-	go client.readMessages()
+	go client.readMessages(hub)
 	client.writeMessages()
 }
 
-func (c *Client) readMessages() {
+func (c *Client) readMessages(hub *Hub) {
 	defer func() {
 		hub.unregister(c)
 		c.conn.Close()
@@ -90,30 +98,13 @@ func (c *Client) writeMessages() {
 }
 
 func main() {
-	app := fiber.New()
-
-	// Serve static files from the "static" directory
-	app.Static("/", "./static")
-
-	// WebSocket route
-	app.Get("/ws", websocket.New(func(c *websocket.Conn) {
-		handleConnection(c)
-	}))
-
-	// Root route displaying the URL
-	app.Get("/", func(c *fiber.Ctx) error {
-		url := os.Getenv("RAILWAY_URL")
-		if url == "" {
-			url = "URL not available" // Default message if URL is not set
-		}
-		return c.SendString(fmt.Sprintf("Chat app is running at %s", url))
+	hub := newHub()
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		handleConnection(hub, w, r)
 	})
+	http.Handle("/", http.FileServer(http.Dir("./static")))
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	fmt.Printf("Server started on :%s\n", port)
-	log.Fatal(app.Listen(":" + port))
+	port := "8080"
+	fmt.Println("Server started on :8080")
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
