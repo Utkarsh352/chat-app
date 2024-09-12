@@ -10,13 +10,7 @@ import (
 	"github.com/gofiber/websocket/v2"
 )
 
-var upgrader = websocket.New(upgraderConfig)
-
 var hub = newHub()
-
-func upgraderConfig(c *websocket.Conn) bool {
-	return true
-}
 
 type Client struct {
 	conn *websocket.Conn
@@ -98,14 +92,19 @@ func (c *Client) writeMessages() {
 func main() {
 	app := fiber.New()
 
+	// Serve static files from the "static" directory
 	app.Static("/", "./static")
 
-	app.Get("/ws", websocket.New(handleConnection))
+	// WebSocket route
+	app.Get("/ws", websocket.New(func(c *websocket.Conn) {
+		handleConnection(c)
+	}))
 
+	// Root route displaying the URL
 	app.Get("/", func(c *fiber.Ctx) error {
 		url := os.Getenv("RAILWAY_URL")
 		if url == "" {
-			url = "http://localhost:8080"
+			url = "URL not available" // Default message if URL is not set
 		}
 		return c.SendString(fmt.Sprintf("Chat app is running at %s", url))
 	})
