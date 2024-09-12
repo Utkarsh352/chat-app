@@ -2,16 +2,20 @@ package main
 
 import (
 	"fmt"
-	"net/http"
-	"github.com/gorilla/websocket"
 	"log"
+	"os"
 	"sync"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/websocket/v2"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
+var upgrader = websocket.New(upgraderConfig)
+
+var hub = newHub()
+
+func upgraderConfig(c *websocket.Conn) bool {
+	return true
 }
 
 type Client struct {
@@ -57,23 +61,18 @@ func (h *Hub) broadcast(message []byte) {
 	}
 }
 
-func handleConnection(hub *Hub, w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("Error while upgrading connection:", err)
-		return
-	}
+func handleConnection(c *websocket.Conn) {
 	client := &Client{
-		conn: conn,
+		conn: c,
 		send: make(chan []byte),
 	}
 	hub.register(client)
 
-	go client.readMessages(hub)
+	go client.readMessages()
 	client.writeMessages()
 }
 
-func (c *Client) readMessages(hub *Hub) {
+func (c *Client) readMessages() {
 	defer func() {
 		hub.unregister(c)
 		c.conn.Close()
@@ -97,13 +96,25 @@ func (c *Client) writeMessages() {
 }
 
 func main() {
-	hub := newHub()
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		handleConnection(hub, w, r)
-	})
-	http.Handle("/", http.FileServer(http.Dir("./static")))
+	app := fiber.New()
 
-	port := "8080"
-	fmt.Println("Server started on :8080")
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	app.Static("/", "./static")
+
+	app.Get("/ws", websocket.New(handleConnection))
+
+	app.Get("/", func(c *fiber.Ctx) error {
+		url := os.Getenv("RAILWAY_URL")
+		if url == "" {
+			url = "http://localhost:8080"
+		}
+		return c.SendString(fmt.Sprintf("Chat app is running at %s", url))
+	})
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	fmt.Printf("Server started on :%s\n", port)
+	log.Fatal(app.Listen(":" + port))
 }
