@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
-	"sync"
-
 	"github.com/gorilla/websocket"
+	"log"
+	"sync"
 )
 
 var upgrader = websocket.Upgrader{
