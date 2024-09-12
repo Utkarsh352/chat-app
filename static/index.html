@@ -1,33 +1,28 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Chat App</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Static Website</title>
     <style>
-        #messages { height: 300px; overflow-y: scroll; }
-        #input { width: 100%; }
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 50px;
+        }
+        h1 {
+            color: #333;
+        }
     </style>
 </head>
 <body>
-    <div id="messages"></div>
-    <input id="input" type="text" placeholder="Type a message..." />
+    <h1>Welcome to My Static Website</h1>
+    <p>This is a basic static site served using Go.</p>
+    <p>Current environment URL: <span id="url"></span></p>
+
     <script>
-        const ws = new WebSocket('ws://' + location.host + '/ws');
-        const messages = document.getElementById('messages');
-        const input = document.getElementById('input');
-
-        ws.onmessage = function(event) {
-            const message = document.createElement('div');
-            message.textContent = event.data;
-            messages.appendChild(message);
-            messages.scrollTop = messages.scrollHeight;
-        };
-
-        input.addEventListener('keydown', function(event) {
-            if (event.key === 'Enter') {
-                ws.send(input.value);
-                input.value = '';
-            }
-        });
+        // Display the current URL (useful for development)
+        document.getElementById('url').textContent = window.location.href;
     </script>
 </body>
 </html>
